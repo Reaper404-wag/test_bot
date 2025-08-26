@@ -97,7 +97,8 @@
             justify-content: center;
             font-size: 24px;
             cursor: pointer;
-            transition: background-color 0.2s;
+            transition: all 0.2s;
+            position: relative;
         }
 
         .square.light {
@@ -110,6 +111,52 @@
 
         .square:hover {
             background-color: #7fb069 !important;
+        }
+
+        .square.selected {
+            background-color: #7fb069 !important;
+            box-shadow: inset 0 0 0 3px #4a7c59;
+        }
+
+        .square.possible-move {
+            background-color: rgba(127, 176, 105, 0.5) !important;
+        }
+
+        .square.possible-move::after {
+            content: '';
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #2d5a32;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .square.possible-capture::after {
+            content: '';
+            position: absolute;
+            width: 36px;
+            height: 36px;
+            border: 3px solid #d32f2f;
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: none;
+        }
+
+        .piece-white {
+            color: #ffffff;
+            text-shadow: 1px 1px 0 #000000, -1px -1px 0 #000000, 
+                         1px -1px 0 #000000, -1px 1px 0 #000000;
+        }
+
+        .piece-black {
+            color: #000000;
+            text-shadow: 1px 1px 0 #ffffff, -1px -1px 0 #ffffff, 
+                         1px -1px 0 #ffffff, -1px 1px 0 #ffffff;
         }
 
         .puzzle-info {
@@ -391,6 +438,9 @@
             document.getElementById('about-section').classList.add('hidden');
         }
 
+        let selectedSquare = null;
+        let possibleMoves = [];
+
         function createChessBoard() {
             const boardGrid = document.getElementById('board-grid');
             boardGrid.innerHTML = '';
@@ -399,29 +449,152 @@
                 for (let col = 0; col < 8; col++) {
                     const square = document.createElement('div');
                     square.className = `square ${(row + col) % 2 === 0 ? 'light' : 'dark'}`;
+                    square.dataset.row = row;
+                    square.dataset.col = col;
                     
                     const piece = samplePosition[row][col];
                     if (piece) {
                         square.textContent = pieces[piece];
+                        // Добавляем класс цвета
+                        square.classList.add(piece === piece.toUpperCase() ? 'piece-white' : 'piece-black');
                     }
                     
-                    square.onclick = () => handleSquareClick(row, col);
+                    square.onclick = () => handleSquareClick(row, col, square);
                     boardGrid.appendChild(square);
                 }
             }
         }
 
-        function handleSquareClick(row, col) {
-            // Логика обработки клика по клетке
-            console.log(`Clicked square: ${row}, ${col}`);
+        function handleSquareClick(row, col, square) {
+            clearHighlights();
+            
+            const piece = samplePosition[row][col];
+            
+            // Если кликнули на фигуру
+            if (piece) {
+                selectedSquare = {row, col};
+                square.classList.add('selected');
+                
+                // Показываем возможные ходы
+                possibleMoves = getPossibleMoves(row, col, piece);
+                highlightPossibleMoves(possibleMoves);
+                
+                document.getElementById('yakovs-comment').textContent = 
+                    `"Выбрана фигура ${pieces[piece]}. Ищите лучший ход, товарищ!"`;
+            } 
+            // Если кликнули на пустую клетку и есть выбранная фигура
+            else if (selectedSquare) {
+                // Проверяем, является ли ход возможным
+                const isValidMove = possibleMoves.some(move => move.row === row && move.col === col);
+                
+                if (isValidMove) {
+                    // Делаем ход
+                    makeMove(selectedSquare.row, selectedSquare.col, row, col);
+                    selectedSquare = null;
+                    possibleMoves = [];
+                } else {
+                    // Неверный ход
+                    document.getElementById('yakovs-comment').textContent = 
+                        '"Этот ход невозможен, товарищ. Изучайте правила!"';
+                }
+            }
+        }
+
+        function clearHighlights() {
+            document.querySelectorAll('.square').forEach(square => {
+                square.classList.remove('selected', 'possible-move', 'possible-capture');
+            });
+        }
+
+        function getPossibleMoves(row, col, piece) {
+            const moves = [];
+            const pieceType = piece.toLowerCase();
+            const isWhite = piece === piece.toUpperCase();
+            
+            // Простая логика для демонстрации (только пешки и кони)
+            if (pieceType === 'p') { // Пешка
+                const direction = isWhite ? -1 : 1;
+                const newRow = row + direction;
+                
+                if (newRow >= 0 && newRow < 8) {
+                    // Ход вперед
+                    if (!samplePosition[newRow][col]) {
+                        moves.push({row: newRow, col: col, type: 'move'});
+                    }
+                    
+                    // Взятие по диагонали
+                    if (col > 0 && samplePosition[newRow][col - 1] && 
+                        isOpponentPiece(samplePosition[newRow][col - 1], isWhite)) {
+                        moves.push({row: newRow, col: col - 1, type: 'capture'});
+                    }
+                    if (col < 7 && samplePosition[newRow][col + 1] && 
+                        isOpponentPiece(samplePosition[newRow][col + 1], isWhite)) {
+                        moves.push({row: newRow, col: col + 1, type: 'capture'});
+                    }
+                }
+            } else if (pieceType === 'n') { // Конь
+                const knightMoves = [
+                    [-2, -1], [-2, 1], [-1, -2], [-1, 2],
+                    [1, -2], [1, 2], [2, -1], [2, 1]
+                ];
+                
+                knightMoves.forEach(([dRow, dCol]) => {
+                    const newRow = row + dRow;
+                    const newCol = col + dCol;
+                    
+                    if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
+                        const targetPiece = samplePosition[newRow][newCol];
+                        if (!targetPiece) {
+                            moves.push({row: newRow, col: newCol, type: 'move'});
+                        } else if (isOpponentPiece(targetPiece, isWhite)) {
+                            moves.push({row: newRow, col: newCol, type: 'capture'});
+                        }
+                    }
+                });
+            }
+            // Добавьте логику для других фигур по желанию
+            
+            return moves;
+        }
+
+        function isOpponentPiece(piece, isWhitePlayer) {
+            const isPieceWhite = piece === piece.toUpperCase();
+            return isPieceWhite !== isWhitePlayer;
+        }
+
+        function highlightPossibleMoves(moves) {
+            moves.forEach(move => {
+                const square = document.querySelector(`[data-row="${move.row}"][data-col="${move.col}"]`);
+                if (square) {
+                    if (move.type === 'capture') {
+                        square.classList.add('possible-capture');
+                    } else {
+                        square.classList.add('possible-move');
+                    }
+                }
+            });
+        }
+
+        function makeMove(fromRow, fromCol, toRow, toCol) {
+            // Перемещаем фигуру
+            const piece = samplePosition[fromRow][fromCol];
+            samplePosition[toRow][toCol] = piece;
+            samplePosition[fromRow][fromCol] = '';
+            
+            // Перерисовываем доску
+            createChessBoard();
             
             // Отправляем данные о ходе в бот
             tg.sendData(JSON.stringify({
                 action: 'chess_move',
-                row: row,
-                col: col,
+                from: {row: fromRow, col: fromCol},
+                to: {row: toRow, col: toCol},
+                piece: piece,
                 position: samplePosition
             }));
+            
+            document.getElementById('yakovs-comment').textContent = 
+                `"Хороший ход! Фигура ${pieces[piece]} перемещена. Как говорится, практика - лучший учитель!"`;
         }
 
         function showHint() {
@@ -437,6 +610,27 @@
         }
 
         function resetPuzzle() {
+            selectedSquare = null;
+            possibleMoves = [];
+            
+            // Восстанавливаем исходную позицию
+            const originalPosition = [
+                ['r', '', 'b', 'q', 'k', 'b', 'n', 'r'],
+                ['p', 'p', 'p', 'p', '', 'p', 'p', 'p'],
+                ['', '', 'n', '', '', '', '', ''],
+                ['', '', '', '', 'p', '', '', ''],
+                ['', '', '', '', 'P', '', '', ''],
+                ['', '', '', '', '', 'N', '', ''],
+                ['P', 'P', 'P', 'P', '', 'P', 'P', 'P'],
+                ['R', 'N', 'B', 'Q', 'K', 'B', '', 'R']
+            ];
+            
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    samplePosition[row][col] = originalPosition[row][col];
+                }
+            }
+            
             createChessBoard();
             document.getElementById('yakovs-comment').textContent = 
                 '"Начинаем сначала! Как говорится, повторение - мать учения."';
