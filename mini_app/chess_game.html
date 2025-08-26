@@ -624,25 +624,46 @@
         }
 
         function startGame() {
-            // Переключаемся на игровой экран
-            document.getElementById('setup-screen').classList.add('hidden');
-            document.getElementById('game-screen').classList.remove('hidden');
-            
-            // Инициализируем игру
-            gameState.board = initialBoard.map(row => [...row]);
-            gameState.gameStatus = 'playing';
-            gameState.currentTurn = 'white';
-            
-            // Настраиваем интерфейс
-            setupGameInterface();
-            renderBoard();
-            
-            // Отправляем данные о начале игры в бот
-            tg.sendData(JSON.stringify({
-                action: 'start_game',
-                difficulty: gameState.difficulty,
-                playerColor: gameState.playerColor
-            }));
+            try {
+                console.log('🚀 Начинаем игру...');
+                
+                // Переключаемся на игровой экран
+                document.getElementById('setup-screen').classList.add('hidden');
+                document.getElementById('game-screen').classList.remove('hidden');
+                
+                // Инициализируем игру
+                gameState.board = initialBoard.map(row => [...row]);
+                gameState.gameStatus = 'playing';
+                gameState.currentTurn = 'white';
+                
+                console.log('✅ Состояние игры инициализировано');
+                
+                // Настраиваем интерфейс
+                setupGameInterface();
+                renderBoard();
+                
+                console.log('✅ Интерфейс настроен');
+                
+                // Отправляем данные о начале игры в бот
+                if (tg && tg.sendData) {
+                    try {
+                        tg.sendData(JSON.stringify({
+                            action: 'start_game',
+                            difficulty: gameState.difficulty,
+                            playerColor: gameState.playerColor
+                        }));
+                        console.log('✅ Данные отправлены в бот');
+                    } catch (sendError) {
+                        console.error('❌ Ошибка отправки данных:', sendError);
+                    }
+                } else {
+                    console.warn('⚠️ Telegram WebApp не доступен');
+                }
+                
+            } catch (error) {
+                console.error('❌ Ошибка в startGame():', error);
+                alert('Ошибка при запуске игры: ' + error.message);
+            }
             
             // Если игрок играет черными, ИИ ходит первым
             if (gameState.playerColor === 'black') {
@@ -935,13 +956,19 @@
             updateGameStatus();
             
             // Отправляем ход в бот
-            tg.sendData(JSON.stringify({
-                action: 'player_move',
-                from: { row: fromRow, col: fromCol },
-                to: { row: toRow, col: toCol },
-                piece,
-                board: gameState.board
-            }));
+            if (tg && tg.sendData) {
+                try {
+                    tg.sendData(JSON.stringify({
+                        action: 'player_move',
+                        from: { row: fromRow, col: fromCol },
+                        to: { row: toRow, col: toCol },
+                        piece,
+                        board: gameState.board
+                    }));
+                } catch (error) {
+                    console.error('❌ Ошибка отправки хода:', error);
+                }
+            }
             
             // Запрашиваем ход ИИ
             setTimeout(requestAIMove, 500);
@@ -954,11 +981,17 @@
             updateYakovComment("Размышляю над следующим ходом... Как говорится, поспешишь - людей насмешишь!");
             
             // Отправляем запрос на ход ИИ
-            tg.sendData(JSON.stringify({
-                action: 'request_ai_move',
-                board: gameState.board,
-                difficulty: gameState.difficulty
-            }));
+            if (tg && tg.sendData) {
+                try {
+                    tg.sendData(JSON.stringify({
+                        action: 'request_ai_move',
+                        board: gameState.board,
+                        difficulty: gameState.difficulty
+                    }));
+                } catch (error) {
+                    console.error('❌ Ошибка запроса хода ИИ:', error);
+                }
+            }
         }
 
         function handleAIMove(aiMoveData) {
@@ -1036,11 +1069,17 @@
         }
 
         function requestHint() {
-            tg.sendData(JSON.stringify({
-                action: 'request_hint',
-                board: gameState.board,
-                playerColor: gameState.playerColor
-            }));
+            if (tg && tg.sendData) {
+                try {
+                    tg.sendData(JSON.stringify({
+                        action: 'request_hint',
+                        board: gameState.board,
+                        playerColor: gameState.playerColor
+                    }));
+                } catch (error) {
+                    console.error('❌ Ошибка запроса подсказки:', error);
+                }
+            }
         }
 
         function resignGame() {
@@ -1048,9 +1087,15 @@
                 gameState.gameStatus = 'finished';
                 updateYakovComment("Не расстраивайтесь, товарищ! Как говорится, и на старуху бывает проруха. Главное - учиться на ошибках!");
                 
-                tg.sendData(JSON.stringify({
-                    action: 'resign_game'
-                }));
+                if (tg && tg.sendData) {
+                    try {
+                        tg.sendData(JSON.stringify({
+                            action: 'resign_game'
+                        }));
+                    } catch (error) {
+                        console.error('❌ Ошибка при сдаче:', error);
+                    }
+                }
             }
         }
 
